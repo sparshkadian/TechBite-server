@@ -2,11 +2,13 @@ package models
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	db "techBite/utils"
+	"time"
 
-	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -26,16 +28,7 @@ type NewUser struct {
 var dbCon *sql.DB
 
 func init() {
-	err := godotenv.Load("../.env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 	dbCon = db.ReturnDB()
-}
-
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	return string(bytes), err
 }
 
 func CheckPasswordHash(hash string, password string) bool {
@@ -43,29 +36,31 @@ func CheckPasswordHash(hash string, password string) bool {
 	return err == nil
 }
 
-// func (user *User) UseSignup(w http.ResponseWriter) *NewUser{	
-// 	rand.NewSource(time.Now().UnixNano())
-// 	pseudoRandomId :=  rand.Intn(10000)
-// 	user.ID = pseudoRandomId
-// 	hashedPassword, hashError := HashPassword(user.Password)
-// 	if hashError != nil {
-// 		log.Fatal("Error hashing password", hashError)
-// 		return nil
-// 	}
-// 	user.Password = hashedPassword
-// 	resultRow, err := dbCon.Query("INSERT INTO `blogwebsite`.`user` (id, name, email, password) VALUES(?, ?, ?, ?)", user.ID, user.Name, user.Email, user.Password)
-// 	if err != nil {
-// 		fmt.Println("Error Creating new User", err)
-// 		return nil
-// 	}
-// 	defer resultRow.Close()
-// 	newUser := NewUser{
-// 		ID: user.ID,
-// 		Name: user.Name,
-// 		Email: user.Email,
-// 	}
-// 	return &newUser
-// }
+func (user *User) UseSignup(w http.ResponseWriter) *NewUser{	
+	rand.NewSource(time.Now().UnixNano())
+	pseudoRandomId :=  rand.Intn(10000)
+	user.ID = pseudoRandomId
+
+	hashedPassword, hashError := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
+	if hashError != nil {
+		log.Fatal("Error hashing password", hashError)
+		return nil
+	}
+	user.Password = string(hashedPassword)
+
+	_, err := dbCon.Exec("INSERT INTO `blogwebsite`.`users` (id, name, email, password) VALUES(?, ?, ?, ?)", user.ID, user.Name, user.Email, user.Password)
+	if err != nil {
+		fmt.Println("Error Creating new User", err)
+		return nil
+	}
+	
+	newUser := NewUser{
+		ID: user.ID,
+		Name: user.Name,
+		Email: user.Email,
+	}
+	return &newUser
+}
 
 func (user *User) UseLogin(w http.ResponseWriter) *NewUser{
 	email := user.Email
@@ -74,7 +69,7 @@ func (user *User) UseLogin(w http.ResponseWriter) *NewUser{
 		http.Error(w, "Both Fields are required", http.StatusBadRequest)
 		return nil
 	}
-	err := dbCon.QueryRow("SELECT * FROM `taskManagement`.`users` WHERE (email = ?)", email).Scan(&user.ID, &user.Name, &user.Email, &user.Password)
+	err := dbCon.QueryRow("SELECT * FROM `blogwebsite`.`user` WHERE (email = ?)", email).Scan(&user.ID, &user.Name, &user.Email, &user.Password)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "No such user exists", http.StatusBadRequest)
